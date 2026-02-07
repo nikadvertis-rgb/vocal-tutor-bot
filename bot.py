@@ -7,7 +7,7 @@ Telegram-бот для тренировки вокала.
 """
 
 import logging
-from telegram import Update
+from telegram import BotCommand, Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -25,6 +25,7 @@ from handlers.exercise import exercise_command, exercise_callback
 from handlers.progress import progress_command
 from handlers.help import help_command
 from handlers.settings import settings_command, settings_voice_callback
+from handlers.warmups import warmups_command, warmup_callback
 
 # Настройка логирования
 logging.basicConfig(
@@ -54,15 +55,31 @@ def main() -> None:
     application.add_handler(CommandHandler("exercise", exercise_command))
     application.add_handler(CommandHandler("progress", progress_command))
     application.add_handler(CommandHandler("settings", settings_command))
+    application.add_handler(CommandHandler("warmups", warmups_command))
 
     # Обработчик callback-кнопок
     application.add_handler(CallbackQueryHandler(voice_type_callback, pattern="^voice_"))
     application.add_handler(CallbackQueryHandler(exercise_callback, pattern="^exercise_"))
     application.add_handler(CallbackQueryHandler(settings_voice_callback, pattern="^settings_voice_"))
+    application.add_handler(CallbackQueryHandler(warmup_callback, pattern="^warmup_"))
     
     # Обработчик голосовых сообщений
     application.add_handler(MessageHandler(filters.VOICE, voice_handler))
     
+    # Устанавливаем меню команд при старте
+    async def post_init(app) -> None:
+        await app.bot.set_my_commands([
+            BotCommand("start", "Начать работу"),
+            BotCommand("exercise", "Выбрать упражнение"),
+            BotCommand("warmups", "Готовые распевки"),
+            BotCommand("progress", "Мой прогресс"),
+            BotCommand("settings", "Настройки"),
+            BotCommand("help", "Справка"),
+        ])
+        logger.info("Меню команд установлено")
+
+    application.post_init = post_init
+
     # Graceful shutdown — закрываем БД при остановке
     async def post_shutdown(app) -> None:
         close_db()

@@ -1,15 +1,20 @@
 """
 Обработчик команды /exercise.
 Показывает список упражнений и позволяет выбрать одно.
+Отправляет аудиопример с целевыми нотами.
 """
 
 import json
+import logging
 from pathlib import Path
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-# Загружаем упражнения из JSON
+logger = logging.getLogger(__name__)
+
+# Пути
 EXERCISES_PATH = Path(__file__).parent.parent / "exercises" / "exercises.json"
+AUDIO_EXAMPLES_DIR = Path(__file__).parent.parent / "exercises" / "audio" / "examples"
 
 
 def load_exercises() -> list:
@@ -26,20 +31,20 @@ async def exercise_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Показывает список доступных упражнений.
     """
     exercises = load_exercises()
-    
+
     if not exercises:
         await update.message.reply_text(
-            "😕 Упражнения пока не загружены.\n"
+            "Упражнения пока не загружены.\n"
             "Попробуй позже."
         )
         return
-    
-    text = """
-🎵 *Выбери упражнение:*
 
-Начни с простых (⭐) и постепенно переходи к сложным (⭐⭐⭐).
-"""
-    
+    text = (
+        "🎵 *Выбери упражнение:*\n\n"
+        "Начни с простых и постепенно переходи к сложным.\n"
+        "К каждому упражнению есть аудиопример!"
+    )
+
     # Группируем по сложности
     keyboard = []
     for exercise in exercises:
@@ -47,13 +52,13 @@ async def exercise_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         button_text = f"{difficulty} {exercise['name']}"
         keyboard.append([
             InlineKeyboardButton(
-                button_text, 
+                button_text,
                 callback_data=f"exercise_{exercise['id']}"
             )
         ])
-    
+
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
+
     await update.message.reply_text(
         text,
         parse_mode="Markdown",
@@ -64,42 +69,49 @@ async def exercise_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def exercise_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Обработчик выбора упражнения через inline-кнопку.
+    Отправляет описание + аудиопример.
     """
     query = update.callback_query
     await query.answer()
-    
+
     exercise_id = query.data.replace("exercise_", "")
     exercises = load_exercises()
-    
+
     # Находим выбранное упражнение
     exercise = next((e for e in exercises if e["id"] == exercise_id), None)
-    
+
     if not exercise:
-        await query.edit_message_text("❌ Упражнение не найдено.")
+        await query.edit_message_text("Упражнение не найдено.")
         return
-    
+
     # Сохраняем в контексте
     context.user_data["current_exercise"] = exercise
-    
+
     # Формируем описание целевых нот
     target_notes = exercise.get("target_notes", [])
-    notes_text = " → ".join([n["name"] for n in target_notes])
-    
-    text = f"""
-🎵 *{exercise['name']}*
+    notes_text = " - ".join([n["name"] for n in target_notes])
 
-{exercise.get('description', '')}
+    text = (
+        f"🎵 *{exercise['name']}*\n\n"
+        f"{exercise.get('description', '')}\n\n"
+        f"*Целевые ноты:* {notes_text}\n"
+        f"*Допустимое отклонение:* ±{exercise.get('tolerance_cents', 50)} центов\n\n"
+        f"📱 *Теперь запиши голосовое сообщение с этим упражнением!*\n"
+        f"Я проанализирую твоё исполнение и дам обратную связь."
+    )
 
-*Целевые ноты:*
-{notes_text}
-
-*Допустимое отклонение:* ±{exercise.get('tolerance_cents', 50)} центов
-
----
-
-📱 *Теперь запиши голосовое сообщение с этим упражнением!*
-
-Я проанализирую твоё исполнение и дам обратную связь.
-"""
-    
     await query.edit_message_text(text, parse_mode="Markdown")
+
+    # Отправляем аудиопример если есть
+    audio_path = AUDIO_EXAMPLES_DIR / f"{exercise_id}.ogg"
+    if audio_path.exists():
+        try:
+            with open(audio_path, "rb") as audio_file:
+                await query.message.reply_voice(
+                    voice=audio_file,
+                    caption=f"🎹 Послушай как звучат ноты: {notes_text}",
+                )
+        except Exception as e:
+            logger.warning(f"Не удалось отправить аудиопример: {e}")
+    else:
+        logger.debug(f"Аудиопример не найден: {audio_path}")

@@ -4,17 +4,20 @@
 """
 
 import os
+import asyncio
 import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import MAX_VOICE_DURATION, MIN_VOICE_DURATION
 from utils.audio import download_and_convert_voice
-from analysis.pitch import analyze_pitch
+from analysis.pitch import analyze_pitch, get_pitch_range
 from analysis.notes import format_pitch_report
 from analysis.report import compare_with_exercise
-from ai.coach import get_ai_feedback
-from database.models import save_session, upsert_user
+from ai.coach import get_ai_feedback, analyze_voice_type
+from handlers.start import handle_voice_test_step
+from config import VOICE_TYPES
+from database.models import save_session, upsert_user, set_voice_type
 from utils.rate_limit import check_rate_limit, get_remaining_requests
 
 logger = logging.getLogger(__name__)
@@ -56,7 +59,7 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         remaining = get_remaining_requests(user.id)
         await update.message.reply_text(
             f"⚠️ Слишком много запросов!\n"
-            f"Лимит: 10 анализов в час.\n"
+            f"Лимит: 10 анализов в час. Осталось: {remaining}.\n"
             f"Попробуй чуть позже."
         )
         return
@@ -72,8 +75,8 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         # Скачиваем и конвертируем
         wav_path = await download_and_convert_voice(voice, context)
 
-        # Анализируем pitch
-        pitch_data = analyze_pitch(wav_path)
+        # Анализируем pitch (в отдельном потоке, чтобы не блокировать event loop)
+        pitch_data = await asyncio.to_thread(analyze_pitch, wav_path)
 
         if not pitch_data["pitch_data"]:
             await status_message.edit_text(
@@ -83,6 +86,12 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 "• Петь громче и чётче\n"
                 "• Держать телефон ближе"
             )
+            return
+
+        # Режим авто-определения типа голоса (пошаговый тест с гаммами)
+        if context.user_data.get("detecting_voice_type"):
+            await status_message.edit_text("✅ Голос записан, анализирую...")
+            await handle_voice_test_step(update, context, pitch_data)
             return
 
         # Получаем текущее упражнение

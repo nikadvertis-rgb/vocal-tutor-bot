@@ -63,6 +63,13 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Large audio files (warmups ~50MB)
+exercises/audio/warmups/
+exercises/warmups/
+
+# Generated WAV files (OGG versions are committed)
+exercises/audio/**/*.wav
+
 # Test coverage
 htmlcov/
 .tox/

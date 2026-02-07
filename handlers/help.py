@@ -19,6 +19,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 *Команды:*
 /start — Начать работу, выбрать тип голоса
 /exercise — Выбрать упражнение для тренировки
+/warmups — Готовые распевки для разогрева
 /progress — Посмотреть свой прогресс
 /settings — Настройки (тип голоса)
 /help — Эта справка

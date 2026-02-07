@@ -74,15 +74,34 @@ def get_average_pitch(pitch_data: list) -> float:
 def get_pitch_range(pitch_data: list) -> tuple:
     """
     Определяет диапазон голоса (min и max частоты).
-    
+    Использует 5-й и 95-й перцентили для устойчивости к шуму.
+
     Args:
         pitch_data: Список словарей с frequency
-        
+
     Returns:
         Tuple (min_freq, max_freq)
     """
     if not pitch_data:
         return (0.0, 0.0)
-    
+
     frequencies = [p["frequency"] for p in pitch_data]
-    return (round(min(frequencies), 2), round(max(frequencies), 2))
+    min_freq = float(np.percentile(frequencies, 5))
+    max_freq = float(np.percentile(frequencies, 95))
+    return (round(min_freq, 2), round(max_freq, 2))
+
+
+def get_pitch_median(pitch_data: list) -> float:
+    """
+    Вычисляет медианную частоту — самый надёжный показатель типа голоса.
+
+    Args:
+        pitch_data: Список словарей с frequency
+
+    Returns:
+        Медианная частота в Hz
+    """
+    if not pitch_data:
+        return 0.0
+    frequencies = [p["frequency"] for p in pitch_data]
+    return round(float(np.median(frequencies)), 2)

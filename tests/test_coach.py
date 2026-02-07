@@ -67,20 +67,49 @@ class TestGetAiFeedback:
 
 
 class TestAnalyzeVoiceType:
-    """Тесты analyze_voice_type()."""
+    """Тесты analyze_voice_type() — с медианой."""
 
     @pytest.mark.asyncio
-    async def test_soprano(self):
+    async def test_soprano_with_median(self):
+        """Высокая медиана + высокий max → сопрано."""
+        assert await analyze_voice_type((250, 1100), median_freq=400) == "soprano"
+
+    @pytest.mark.asyncio
+    async def test_mezzo_with_median(self):
+        """Медиана ~280 + высокий max → меццо."""
+        assert await analyze_voice_type((200, 800), median_freq=280) == "mezzo"
+
+    @pytest.mark.asyncio
+    async def test_tenor_with_median(self):
+        """Медиана ~200 + max > 400 → тенор."""
+        assert await analyze_voice_type((130, 450), median_freq=200) == "tenor"
+
+    @pytest.mark.asyncio
+    async def test_tenor_low_median(self):
+        """Медиана ~160 но max > 400 → тенор (не баритон!)."""
+        assert await analyze_voice_type((120, 420), median_freq=160) == "tenor"
+
+    @pytest.mark.asyncio
+    async def test_baritone_with_median(self):
+        """Медиана ~155 + max < 400 → баритон."""
+        assert await analyze_voice_type((100, 350), median_freq=155) == "baritone"
+
+    @pytest.mark.asyncio
+    async def test_bass_with_median(self):
+        """Низкая медиана ~110 + низкий max → бас."""
+        assert await analyze_voice_type((75, 250), median_freq=110) == "bass"
+
+    @pytest.mark.asyncio
+    async def test_fallback_soprano_no_median(self):
+        """Без медианы: max > 1000 → сопрано."""
         assert await analyze_voice_type((300, 1100)) == "soprano"
 
     @pytest.mark.asyncio
-    async def test_bass(self):
-        assert await analyze_voice_type((80, 300)) == "bass"
+    async def test_fallback_tenor_no_median(self):
+        """Без медианы: max > 400 → тенор."""
+        assert await analyze_voice_type((130, 450)) == "tenor"
 
     @pytest.mark.asyncio
-    async def test_tenor(self):
-        assert await analyze_voice_type((200, 500)) == "tenor"
-
-    @pytest.mark.asyncio
-    async def test_baritone_low_min(self):
-        assert await analyze_voice_type((100, 500)) == "baritone"
+    async def test_fallback_bass_no_median(self):
+        """Без медианы: max <= 300 → бас."""
+        assert await analyze_voice_type((80, 250)) == "bass"

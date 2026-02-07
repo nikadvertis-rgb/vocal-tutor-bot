@@ -19,6 +19,7 @@ ZAI_API_KEY = os.getenv("ZAI_API_KEY")
 if not ZAI_API_KEY:
     raise ValueError("ZAI_API_KEY не найден в переменных окружения!")
 ZAI_BASE_URL = os.getenv("ZAI_BASE_URL", "https://api.z.ai/api/paas/v4/")
+ZAI_MODEL = os.getenv("ZAI_MODEL", "glm-4.7")
 
 # SQLite
 DB_PATH = os.getenv("DB_PATH", "data/vocal_tutor.db")
