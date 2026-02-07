@@ -1,0 +1,16 @@
+# Telegram Bot API
+python-telegram-bot==20.7
+
+# Audio Analysis
+librosa==0.10.1
+soundfile==0.12.1
+numpy==1.26.3
+
+# Audio Conversion (requires FFmpeg installed)
+pydub==0.25.1
+
+# AI Feedback (Z.AI GLM-4.7, OpenAI-совместимый API)
+openai>=1.0.0
+
+# Environment Variables
+python-dotenv==1.0.0

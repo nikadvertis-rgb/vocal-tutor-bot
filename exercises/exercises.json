@@ -1,0 +1,149 @@
+[
+  {
+    "id": "major-scale-c",
+    "name": "Мажорная гамма До",
+    "description": "Пропойте вверх: До Ре Ми Фа Соль Ля Си До",
+    "difficulty": 1,
+    "target_notes": [
+      {"name": "C3", "frequency": 130.81},
+      {"name": "D3", "frequency": 146.83},
+      {"name": "E3", "frequency": 164.81},
+      {"name": "F3", "frequency": 174.61},
+      {"name": "G3", "frequency": 196.00},
+      {"name": "A3", "frequency": 220.00},
+      {"name": "B3", "frequency": 246.94},
+      {"name": "C4", "frequency": 261.63}
+    ],
+    "tolerance_cents": 50
+  },
+  {
+    "id": "minor-scale-a",
+    "name": "Минорная гамма Ля",
+    "description": "Пропойте вверх: Ля Си До Ре Ми Фа Соль Ля",
+    "difficulty": 1,
+    "target_notes": [
+      {"name": "A2", "frequency": 110.00},
+      {"name": "B2", "frequency": 123.47},
+      {"name": "C3", "frequency": 130.81},
+      {"name": "D3", "frequency": 146.83},
+      {"name": "E3", "frequency": 164.81},
+      {"name": "F3", "frequency": 174.61},
+      {"name": "G3", "frequency": 196.00},
+      {"name": "A3", "frequency": 220.00}
+    ],
+    "tolerance_cents": 50
+  },
+  {
+    "id": "interval-third",
+    "name": "Терции (До-Ми, Ре-Фа...)",
+    "description": "Пропойте пары нот через одну: До-Ми, Ре-Фа, Ми-Соль",
+    "difficulty": 2,
+    "target_notes": [
+      {"name": "C3", "frequency": 130.81},
+      {"name": "E3", "frequency": 164.81},
+      {"name": "D3", "frequency": 146.83},
+      {"name": "F3", "frequency": 174.61},
+      {"name": "E3", "frequency": 164.81},
+      {"name": "G3", "frequency": 196.00}
+    ],
+    "tolerance_cents": 40
+  },
+  {
+    "id": "interval-fifth",
+    "name": "Квинты (До-Соль, Ре-Ля...)",
+    "description": "Пропойте пары нот через четыре: До-Соль, Ре-Ля, Ми-Си",
+    "difficulty": 2,
+    "target_notes": [
+      {"name": "C3", "frequency": 130.81},
+      {"name": "G3", "frequency": 196.00},
+      {"name": "D3", "frequency": 146.83},
+      {"name": "A3", "frequency": 220.00},
+      {"name": "E3", "frequency": 164.81},
+      {"name": "B3", "frequency": 246.94}
+    ],
+    "tolerance_cents": 40
+  },
+  {
+    "id": "arpeggio-major",
+    "name": "Арпеджио мажор",
+    "description": "Пропойте: До Ми Соль До (вверх и вниз)",
+    "difficulty": 2,
+    "target_notes": [
+      {"name": "C3", "frequency": 130.81},
+      {"name": "E3", "frequency": 164.81},
+      {"name": "G3", "frequency": 196.00},
+      {"name": "C4", "frequency": 261.63},
+      {"name": "G3", "frequency": 196.00},
+      {"name": "E3", "frequency": 164.81},
+      {"name": "C3", "frequency": 130.81}
+    ],
+    "tolerance_cents": 45
+  },
+  {
+    "id": "octave-jump",
+    "name": "Прыжок на октаву",
+    "description": "Пропойте: До (низко) - До (высоко) - До (низко)",
+    "difficulty": 3,
+    "target_notes": [
+      {"name": "C3", "frequency": 130.81},
+      {"name": "C4", "frequency": 261.63},
+      {"name": "C3", "frequency": 130.81}
+    ],
+    "tolerance_cents": 30
+  },
+  {
+    "id": "sirena",
+    "name": "Сирена (глиссандо)",
+    "description": "Плавно скользите голосом от низкой ноты к высокой и обратно",
+    "difficulty": 1,
+    "target_notes": [
+      {"name": "C3", "frequency": 130.81},
+      {"name": "C4", "frequency": 261.63}
+    ],
+    "tolerance_cents": 60
+  },
+  {
+    "id": "lip-trill",
+    "name": "Губная трель (БРРРР)",
+    "description": "Сделайте губную трель на одной ноте, затем скользите вверх",
+    "difficulty": 2,
+    "target_notes": [
+      {"name": "C3", "frequency": 130.81},
+      {"name": "E3", "frequency": 164.81},
+      {"name": "G3", "frequency": 196.00}
+    ],
+    "tolerance_cents": 50
+  },
+  {
+    "id": "staccato",
+    "name": "Стаккато на одной ноте",
+    "description": "Пропойте короткие 'ха-ха-ха' на ноте До",
+    "difficulty": 2,
+    "target_notes": [
+      {"name": "C3", "frequency": 130.81},
+      {"name": "C3", "frequency": 130.81},
+      {"name": "C3", "frequency": 130.81},
+      {"name": "C3", "frequency": 130.81}
+    ],
+    "tolerance_cents": 35
+  },
+  {
+    "id": "passaggio",
+    "name": "Переход в головной регистр",
+    "description": "Плавно пропойте гамму, пересекая переходную зону",
+    "difficulty": 3,
+    "target_notes": [
+      {"name": "C3", "frequency": 130.81},
+      {"name": "D3", "frequency": 146.83},
+      {"name": "E3", "frequency": 164.81},
+      {"name": "F3", "frequency": 174.61},
+      {"name": "G3", "frequency": 196.00},
+      {"name": "A3", "frequency": 220.00},
+      {"name": "B3", "frequency": 246.94},
+      {"name": "C4", "frequency": 261.63},
+      {"name": "D4", "frequency": 293.66},
+      {"name": "E4", "frequency": 329.63}
+    ],
+    "tolerance_cents": 40
+  }
+]

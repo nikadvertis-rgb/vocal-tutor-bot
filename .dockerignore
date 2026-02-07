@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+venv/
+.venv/
+.git/
+.github/
+*.db
+data/*.wav
+data/*.ogg
+.pytest_cache/
+htmlcov/
+.coverage
+*.log
