@@ -6,6 +6,7 @@ from database.models import (
     upsert_user,
     get_user,
     set_voice_type,
+    set_gender,
     save_session,
     get_user_stats,
     get_recent_sessions,
@@ -41,6 +42,26 @@ class TestUsers:
         set_voice_type(1, "tenor")
         user = get_user(1)
         assert user["voice_type"] == "tenor"
+
+    def test_set_gender(self, in_memory_db):
+        """Установка пола пользователя."""
+        upsert_user(user_id=1, username="test")
+        set_gender(1, "male")
+        user = get_user(1)
+        assert user["gender"] == "male"
+
+    def test_set_gender_female(self, in_memory_db):
+        """Установка женского пола."""
+        upsert_user(user_id=1, username="test")
+        set_gender(1, "female")
+        user = get_user(1)
+        assert user["gender"] == "female"
+
+    def test_gender_default_null(self, in_memory_db):
+        """Пол по умолчанию — NULL."""
+        upsert_user(user_id=1, username="test")
+        user = get_user(1)
+        assert user["gender"] is None
 
 
 class TestSessions:

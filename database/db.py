@@ -63,6 +63,15 @@ def init_db() -> None:
             ON sessions(created_at);
     """)
     conn.commit()
+
+    # Миграция: добавляем столбец gender если его нет
+    try:
+        conn.execute("SELECT gender FROM users LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT NULL")
+        conn.commit()
+        logger.info("Миграция: добавлен столбец gender в users")
+
     logger.info("Таблицы БД инициализированы")
 
 

@@ -122,8 +122,10 @@ class TestAnalyzeVoiceTypeFromTest:
         """Генерирует pitch_data из списка частот."""
         return [{"frequency": f, "time": i * 0.1, "confidence": 0.9} for i, f in enumerate(freqs)]
 
+    # ─── Тесты без gender (обратная совместимость) ─────────────────
+
     def test_male_wide_range_is_tenor(self):
-        """Мужчина прошёл все 3 гаммы → тенор (НЕ сопрано!)."""
+        """Мужчина прошёл все 3 гаммы → тенор (НЕ сопрано!) — без gender."""
         test_data = [
             {"step": 0, "scale": "scale_C3", "pitch_data": self._make_pitch_data(
                 [135, 150, 165, 175, 200, 220, 245, 260]
@@ -137,17 +139,47 @@ class TestAnalyzeVoiceTypeFromTest:
         ]
         assert analyze_voice_type_from_test(test_data) == "tenor"
 
-    def test_male_two_steps_tenor(self):
-        """Мужчина прошёл 2 гаммы (C3-C5) → тенор."""
+    def test_empty_data_fallback(self):
+        """Пустые данные без gender → баритон (фолбэк)."""
+        assert analyze_voice_type_from_test([]) == "baritone"
+
+    def test_empty_data_fallback_female(self):
+        """Пустые данные с gender=female → меццо."""
+        assert analyze_voice_type_from_test([], gender="female") == "mezzo"
+
+    # ─── Тесты с gender=male ──────────────────────────────────────
+
+    def test_male_gender_wide_range_is_tenor(self):
+        """Мужчина с gender=male прошёл все 3 гаммы → тенор."""
         test_data = [
             {"step": 0, "scale": "scale_C3", "pitch_data": self._make_pitch_data(
-                [135, 150, 170, 180, 200, 220, 245, 260]
+                [135, 150, 165, 175, 200, 220, 245, 260]
             )},
             {"step": 1, "scale": "scale_C4", "pitch_data": self._make_pitch_data(
                 [265, 295, 330, 350, 395, 440, 495, 525]
             )},
+            {"step": 2, "scale": "scale_C5", "pitch_data": self._make_pitch_data(
+                [525, 590, 660, 700, 785, 880, 990, 1050]
+            )},
         ]
-        assert analyze_voice_type_from_test(test_data) == "tenor"
+        result = analyze_voice_type_from_test(test_data, gender="male")
+        assert result == "tenor"
+
+    def test_male_gender_never_soprano(self):
+        """Мужчина НИКОГДА не получает soprano/mezzo/alto."""
+        test_data = [
+            {"step": 0, "scale": "scale_C3", "pitch_data": self._make_pitch_data(
+                [135, 150, 165, 175, 200, 220, 245, 260]
+            )},
+            {"step": 1, "scale": "scale_C4", "pitch_data": self._make_pitch_data(
+                [265, 295, 330, 350, 395, 440, 495, 525]
+            )},
+            {"step": 2, "scale": "scale_C5", "pitch_data": self._make_pitch_data(
+                [525, 590, 660, 700, 785, 880, 990, 1050]
+            )},
+        ]
+        result = analyze_voice_type_from_test(test_data, gender="male")
+        assert result in ("bass", "baritone", "tenor")
 
     def test_male_one_step_low_median_bass(self):
         """Мужчина прошёл только 1 гамму с низкой медианой → бас."""
@@ -156,7 +188,7 @@ class TestAnalyzeVoiceTypeFromTest:
                 [130, 135, 140, 145, 150, 155, 160, 165]
             )},
         ]
-        assert analyze_voice_type_from_test(test_data) == "bass"
+        assert analyze_voice_type_from_test(test_data, gender="male") == "bass"
 
     def test_male_one_step_baritone(self):
         """Мужчина прошёл 1 гамму с медианой ~190 → баритон."""
@@ -165,7 +197,19 @@ class TestAnalyzeVoiceTypeFromTest:
                 [150, 170, 185, 195, 200, 210, 230, 250]
             )},
         ]
-        assert analyze_voice_type_from_test(test_data) == "baritone"
+        assert analyze_voice_type_from_test(test_data, gender="male") == "baritone"
+
+    def test_male_two_steps_tenor(self):
+        """Мужчина прошёл 2 гаммы с медианой >= 155 → тенор."""
+        test_data = [
+            {"step": 0, "scale": "scale_C3", "pitch_data": self._make_pitch_data(
+                [135, 150, 170, 180, 200, 220, 245, 260]
+            )},
+            {"step": 1, "scale": "scale_C4", "pitch_data": self._make_pitch_data(
+                [265, 295, 330, 350, 395, 440, 495, 525]
+            )},
+        ]
+        assert analyze_voice_type_from_test(test_data, gender="male") == "tenor"
 
     def test_male_two_steps_low_first_baritone(self):
         """Мужчина прошёл 2 гаммы но медиана первой < 155 → баритон."""
@@ -177,10 +221,43 @@ class TestAnalyzeVoiceTypeFromTest:
                 [265, 295, 330, 350, 395, 440, 495, 525]
             )},
         ]
-        assert analyze_voice_type_from_test(test_data) == "baritone"
+        assert analyze_voice_type_from_test(test_data, gender="male") == "baritone"
 
-    def test_female_high_start_soprano(self):
-        """Женщина с высоким нижним концом (>280) + 2 гаммы → сопрано."""
+    # ─── Тесты с gender=female ─────────────────────────────────────
+
+    def test_female_gender_never_male_types(self):
+        """Женщина НИКОГДА не получает bass/baritone/tenor."""
+        test_data = [
+            {"step": 0, "scale": "scale_C3", "pitch_data": self._make_pitch_data(
+                [135, 150, 165, 175, 200, 220, 245, 260]
+            )},
+            {"step": 1, "scale": "scale_C4", "pitch_data": self._make_pitch_data(
+                [265, 295, 330, 350, 395, 440, 495, 525]
+            )},
+        ]
+        result = analyze_voice_type_from_test(test_data, gender="female")
+        assert result in ("alto", "mezzo", "soprano")
+
+    def test_female_one_step_low_alto(self):
+        """Женщина с низкой медианой (<200) + 1 гамма → альт."""
+        test_data = [
+            {"step": 0, "scale": "scale_C3", "pitch_data": self._make_pitch_data(
+                [135, 150, 165, 175, 190, 195, 200, 210]
+            )},
+        ]
+        assert analyze_voice_type_from_test(test_data, gender="female") == "alto"
+
+    def test_female_one_step_mezzo(self):
+        """Женщина с медианой >= 200 + 1 гамма → меццо."""
+        test_data = [
+            {"step": 0, "scale": "scale_C3", "pitch_data": self._make_pitch_data(
+                [200, 210, 230, 250, 260, 270, 280, 290]
+            )},
+        ]
+        assert analyze_voice_type_from_test(test_data, gender="female") == "mezzo"
+
+    def test_female_two_steps_soprano(self):
+        """Женщина с высокой медианой (>280) + 2 гаммы → сопрано."""
         test_data = [
             {"step": 0, "scale": "scale_C4", "pitch_data": self._make_pitch_data(
                 [290, 310, 330, 350, 395, 440, 495, 525]
@@ -189,20 +266,34 @@ class TestAnalyzeVoiceTypeFromTest:
                 [525, 590, 660, 700, 785, 880, 990, 1050]
             )},
         ]
-        assert analyze_voice_type_from_test(test_data) == "soprano"
+        assert analyze_voice_type_from_test(test_data, gender="female") == "soprano"
 
-    def test_female_medium_start_mezzo(self):
-        """Женщина с нижним концом 200-280 → меццо."""
+    def test_female_three_steps_mezzo(self):
+        """Женщина с медианой < 250 + 3 гаммы → меццо."""
         test_data = [
             {"step": 0, "scale": "scale_C3", "pitch_data": self._make_pitch_data(
-                [210, 230, 250, 260, 270, 280, 290, 300]
+                [180, 190, 200, 210, 220, 230, 240, 250]
             )},
             {"step": 1, "scale": "scale_C4", "pitch_data": self._make_pitch_data(
                 [265, 295, 330, 350, 395, 440, 495, 525]
             )},
+            {"step": 2, "scale": "scale_C5", "pitch_data": self._make_pitch_data(
+                [525, 590, 660, 700, 785, 880, 990, 1050]
+            )},
         ]
-        assert analyze_voice_type_from_test(test_data) == "mezzo"
+        assert analyze_voice_type_from_test(test_data, gender="female") == "mezzo"
 
-    def test_empty_data_fallback(self):
-        """Пустые данные → баритон (фолбэк)."""
-        assert analyze_voice_type_from_test([]) == "baritone"
+    def test_female_three_steps_soprano(self):
+        """Женщина с медианой >= 250 + 3 гаммы → сопрано."""
+        test_data = [
+            {"step": 0, "scale": "scale_C3", "pitch_data": self._make_pitch_data(
+                [240, 250, 260, 270, 280, 290, 300, 310]
+            )},
+            {"step": 1, "scale": "scale_C4", "pitch_data": self._make_pitch_data(
+                [265, 295, 330, 350, 395, 440, 495, 525]
+            )},
+            {"step": 2, "scale": "scale_C5", "pitch_data": self._make_pitch_data(
+                [525, 590, 660, 700, 785, 880, 990, 1050]
+            )},
+        ]
+        assert analyze_voice_type_from_test(test_data, gender="female") == "soprano"

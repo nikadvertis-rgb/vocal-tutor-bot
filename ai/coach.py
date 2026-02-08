@@ -102,72 +102,98 @@ async def analyze_voice_type(pitch_range: tuple, median_freq: float = 0.0) -> st
         return "bass"
 
 
-def analyze_voice_type_from_test(test_data: list) -> str:
+def analyze_voice_type_from_test(test_data: list, gender: str = None) -> str:
     """
     Определяет тип голоса по данным пошагового теста с гаммами.
 
     Принцип: НИЖНИЙ конец диапазона (первая гамма) определяет тип голоса.
     Количество пройденных шагов показывает ширину диапазона, но НЕ тип.
-    Мужчина с широким диапазоном — это тенор, а не сопрано.
 
-    Гаммы теста:
-      Шаг 0: C3-C4 (130-262 Hz) — средний мужской диапазон
-      Шаг 1: C4-C5 (262-523 Hz) — октавой выше
-      Шаг 2: C5-C6 (523-1047 Hz) — ещё октавой выше
+    С учётом пола:
+    - male → только bass / baritone / tenor
+    - female → только alto / mezzo / soprano
+    - None → старая логика (без ограничений)
 
     Args:
         test_data: Список словарей с ключами step, scale, pitch_data
-                   (pitch_data = список {frequency, time, confidence})
+        gender: "male", "female" или None
 
     Returns:
-        Тип голоса: bass, baritone, tenor, mezzo, soprano
+        Тип голоса: bass, baritone, tenor, alto, mezzo, soprano
     """
     import numpy as np
 
     if not test_data:
+        if gender == "female":
+            return "mezzo"
         return "baritone"
 
     steps_completed = len(test_data)
 
-    # Анализируем первую (самую низкую) гамму — она определяет "дно" голоса
     first_step_data = test_data[0]["pitch_data"]
     if not first_step_data:
+        if gender == "female":
+            return "mezzo"
         return "baritone"
 
     first_freqs = [p["frequency"] for p in first_step_data]
-    low_end = float(np.percentile(first_freqs, 5))      # нижняя граница
-    first_median = float(np.median(first_freqs))          # медиана первой гаммы
+    low_end = float(np.percentile(first_freqs, 5))
+    first_median = float(np.median(first_freqs))
 
-    # Если нижний конец < 200 Hz — мужской голос (бас/баритон/тенор)
-    # Первая гамма C3-C4, значит если человек поёт её с частотами 130-260,
-    # он точно мужской голос.
-    if low_end < 200:
+    if gender == "male":
+        # Мужской: только bass / baritone / tenor
         if steps_completed == 1:
-            # Только C3-C4 (нажал "слишком высоко" для C4-C5)
             if first_median < 155:
                 return "bass"
             else:
                 return "baritone"
         elif steps_completed == 2:
-            # C3-C4 + C4-C5 (нажал "слишком высоко" для C5-C6)
             if first_median < 155:
                 return "baritone"
             else:
                 return "tenor"
         else:
-            # Прошёл все 3 гаммы — широкий диапазон, но нижний конец мужской
             return "tenor"
 
-    # Нижний конец 200-280 Hz — высокий мужской или низкий женский
-    elif low_end < 280:
-        if steps_completed >= 3:
-            return "mezzo"
+    elif gender == "female":
+        # Женский: только alto / mezzo / soprano
+        if steps_completed == 1:
+            if first_median < 200:
+                return "alto"
+            else:
+                return "mezzo"
         elif steps_completed == 2:
+            if first_median < 200:
+                return "alto"
+            elif first_median < 280:
+                return "mezzo"
+            else:
+                return "soprano"
+        else:
+            if first_median < 250:
+                return "mezzo"
+            else:
+                return "soprano"
+
+    # Без пола — старая логика
+    if low_end < 200:
+        if steps_completed == 1:
+            if first_median < 155:
+                return "bass"
+            else:
+                return "baritone"
+        elif steps_completed == 2:
+            if first_median < 155:
+                return "baritone"
+            else:
+                return "tenor"
+        else:
+            return "tenor"
+    elif low_end < 280:
+        if steps_completed >= 2:
             return "mezzo"
         else:
             return "tenor"
-
-    # Нижний конец > 280 Hz — женский голос
     else:
         if steps_completed >= 2:
             return "soprano"
@@ -208,3 +234,75 @@ CONFIDENCE_TEXT = {
     "medium": "Средняя уверенность",
     "low": "Низкая уверенность (запиши более длинный фрагмент)",
 }
+
+
+async def analyze_voice_type_ai(test_data: list, gender: str) -> str | None:
+    """
+    Определяет тип голоса через Z.AI нейронку.
+    Дополнительный метод — подтверждает/корректирует алгоритмический результат.
+
+    Returns:
+        Тип голоса или None если API недоступен.
+    """
+    import numpy as np
+
+    if not test_data or not gender:
+        return None
+
+    valid_types = {
+        "male": ["bass", "baritone", "tenor"],
+        "female": ["alto", "mezzo", "soprano"],
+    }
+    allowed = valid_types.get(gender, [])
+    if not allowed:
+        return None
+
+    gender_ru = "мужской" if gender == "male" else "женский"
+
+    # Формируем описание шагов теста
+    steps_desc = []
+    for step_info in test_data:
+        pd = step_info["pitch_data"]
+        if not pd:
+            continue
+        freqs = [p["frequency"] for p in pd]
+        median = float(np.median(freqs))
+        low = float(np.min(freqs))
+        high = float(np.max(freqs))
+        steps_desc.append(
+            f"- Шаг {step_info['step'] + 1} ({step_info['scale']}): "
+            f"медиана {median:.0f} Hz, диапазон {low:.0f}-{high:.0f} Hz, "
+            f"{len(freqs)} фреймов"
+        )
+
+    if not steps_desc:
+        return None
+
+    prompt = (
+        f"Ты — эксперт по вокальной педагогике. Определи тип голоса.\n"
+        f"Пол: {gender_ru}\n"
+        f"Тест гаммами (от низкой к высокой):\n"
+        f"{chr(10).join(steps_desc)}\n"
+        f"Ответь ОДНИМ словом из списка: {', '.join(allowed)}"
+    )
+
+    try:
+        response = await _client.chat.completions.create(
+            model=ZAI_MODEL,
+            max_tokens=10,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        result = response.choices[0].message.content.strip().lower()
+        # Проверяем что ответ — валидный тип
+        if result in allowed:
+            return result
+        # Пытаемся найти валидный тип в ответе
+        for t in allowed:
+            if t in result:
+                return t
+        logger.warning(f"AI вернул невалидный тип: {result}")
+        return None
+
+    except Exception as e:
+        logger.warning(f"AI voice type error: {e}")
+        return None

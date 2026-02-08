@@ -19,12 +19,12 @@ from telegram.ext import (
 from config import TELEGRAM_TOKEN
 from database.db import init_db, close_db
 from utils.audio import check_ffmpeg
-from handlers.start import start_command, voice_type_callback
+from handlers.start import start_command, gender_callback, voice_type_callback
 from handlers.voice import voice_handler
 from handlers.exercise import exercise_command, exercise_callback
 from handlers.progress import progress_command
 from handlers.help import help_command
-from handlers.settings import settings_command, settings_voice_callback
+from handlers.settings import settings_command, settings_voice_callback, settings_gender_callback
 from handlers.warmups import warmups_command, warmup_callback
 
 # Настройка логирования
@@ -58,8 +58,10 @@ def main() -> None:
     application.add_handler(CommandHandler("warmups", warmups_command))
 
     # Обработчик callback-кнопок
+    application.add_handler(CallbackQueryHandler(gender_callback, pattern="^gender_"))
     application.add_handler(CallbackQueryHandler(voice_type_callback, pattern="^voice_"))
     application.add_handler(CallbackQueryHandler(exercise_callback, pattern="^exercise_"))
+    application.add_handler(CallbackQueryHandler(settings_gender_callback, pattern="^settings_gender_"))
     application.add_handler(CallbackQueryHandler(settings_voice_callback, pattern="^settings_voice_"))
     application.add_handler(CallbackQueryHandler(warmup_callback, pattern="^warmup_"))
     

@@ -32,6 +32,7 @@ def in_memory_db():
             username TEXT,
             first_name TEXT,
             voice_type TEXT DEFAULT 'unknown',
+            gender TEXT DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
