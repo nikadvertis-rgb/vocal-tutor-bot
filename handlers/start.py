@@ -9,8 +9,8 @@ from pathlib import Path
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
-from config import VOICE_TYPES
-from database.models import upsert_user, set_voice_type
+from config import VOICE_TYPES, VOICE_TYPES_BY_GENDER, GENDER_LABELS
+from database.models import upsert_user, set_voice_type, set_gender
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ VOICE_TEST_STEPS = [
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Обработчик команды /start.
-    Приветствует пользователя и показывает кнопки выбора типа голоса.
+    Приветствует пользователя и предлагает выбрать пол.
     """
     user = update.effective_user
 
@@ -60,22 +60,57 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         f"• Анализировать высоту твоего голоса\n"
         f"• Показывать точность попадания в ноты\n"
         f"• Давать персональные советы\n\n"
-        f"*Для начала выбери свой тип голоса:*"
+        f"*Для начала — укажи свой пол:*\n"
+        f"_(нужно для точного определения типа голоса)_"
     )
 
-    # Создаём inline-клавиатуру с типами голосов
     keyboard = [
-        [InlineKeyboardButton("🎙 Определить автоматически", callback_data="voice_auto_detect")]
+        [
+            InlineKeyboardButton("👨 Мужской", callback_data="gender_male"),
+            InlineKeyboardButton("👩 Женский", callback_data="gender_female"),
+        ]
     ]
-    for voice_id, voice_name in VOICE_TYPES.items():
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        welcome_text,
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
+
+
+async def gender_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик выбора пола. Показывает типы голоса для этого пола."""
+    query = update.callback_query
+    await query.answer()
+
+    gender = query.data.replace("gender_", "")  # "male" или "female"
+    user = query.from_user
+
+    # Сохраняем пол
+    set_gender(user.id, gender)
+    context.user_data["gender"] = gender
+
+    gender_label = GENDER_LABELS.get(gender, gender)
+    voice_types = VOICE_TYPES_BY_GENDER.get(gender, {})
+
+    keyboard = [
+        [InlineKeyboardButton(
+            "🎙 Определить автоматически (эксперим.)",
+            callback_data="voice_auto_detect"
+        )]
+    ]
+    for voice_id, voice_name in voice_types.items():
         keyboard.append([
             InlineKeyboardButton(voice_name, callback_data=f"voice_{voice_id}")
         ])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
-        welcome_text,
+    await query.edit_message_text(
+        f"Пол: *{gender_label}*\n\n"
+        f"*Теперь выбери тип голоса:*\n"
+        f"Можешь выбрать вручную или определить автоматически.",
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
@@ -96,10 +131,12 @@ async def voice_type_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data["detecting_voice_type"] = True
 
         await query.edit_message_text(
-            "🎙 *Определяем тип голоса*\n\n"
+            "🎙 *Определяем тип голоса (эксперим.)*\n\n"
             "Я отправлю тебе гамму — послушай и спой в ответ.\n"
             "Потом отправлю на октаву выше, и так далее.\n\n"
-            "Если будет слишком высоко — нажми кнопку.\n"
+            "Если будет слишком высоко — нажми кнопку.\n\n"
+            "⚠️ _Автоопределение — экспериментальная функция. "
+            "Результат может быть неточным._\n\n"
             "Поехали!",
             parse_mode="Markdown"
         )
@@ -252,7 +289,10 @@ async def _determine_voice_from_test(update, context):
 async def _determine_voice_from_test_data(message, user, context, test_data):
     """Общая логика определения голоса по данным теста."""
     from analysis.pitch import get_pitch_range, get_pitch_median
-    from ai.coach import analyze_voice_type_from_test, get_voice_confidence, CONFIDENCE_TEXT
+    from ai.coach import (
+        analyze_voice_type_from_test, analyze_voice_type_ai,
+        get_voice_confidence, CONFIDENCE_TEXT,
+    )
 
     # Объединяем все pitch data (для отчёта)
     all_pitch_data = []
@@ -265,10 +305,27 @@ async def _determine_voice_from_test_data(message, user, context, test_data):
         )
         return
 
+    gender = context.user_data.get("gender")
+    gender_label = GENDER_LABELS.get(gender, "не указан")
+
     pitch_range = get_pitch_range(all_pitch_data)
     median_freq = get_pitch_median(all_pitch_data)
-    # Определяем тип по пошаговым данным (не по общей медиане!)
-    detected_type = analyze_voice_type_from_test(test_data)
+
+    # Гибрид: алгоритм + AI
+    algo_type = analyze_voice_type_from_test(test_data, gender=gender)
+    ai_type = await analyze_voice_type_ai(test_data, gender=gender)
+
+    # Итоговый результат: AI подтверждает или алгоритм как основа
+    if ai_type and ai_type != algo_type:
+        detected_type = ai_type  # AI корректирует
+        method_note = f"Алгоритм: {VOICE_TYPES.get(algo_type, algo_type)} | AI: {VOICE_TYPES.get(ai_type, ai_type)}"
+    elif ai_type:
+        detected_type = algo_type  # Совпали
+        method_note = f"Алгоритм и AI совпали"
+    else:
+        detected_type = algo_type  # AI недоступен
+        method_note = f"Определено алгоритмом (AI недоступен)"
+
     voice_name = VOICE_TYPES.get(detected_type, detected_type)
     confidence = get_voice_confidence(all_pitch_data, detected_type)
     confidence_label = CONFIDENCE_TEXT.get(confidence, "")
@@ -284,14 +341,16 @@ async def _determine_voice_from_test_data(message, user, context, test_data):
     context.user_data.pop("voice_test_data", None)
 
     await message.reply_text(
-        f"🎙 *Результат анализа голоса*\n\n"
+        f"🎙 *Результат анализа голоса (эксперим.)*\n\n"
+        f"Пол: {gender_label}\n"
         f"Пройдено шагов: {steps_done}\n"
         f"Максимальная гамма: {last_scale}\n"
         f"Диапазон: {pitch_range[0]:.0f} — {pitch_range[1]:.0f} Hz\n"
         f"Тесситура (медиана): {median_freq:.0f} Hz\n"
         f"Определён тип: *{voice_name}*\n"
-        f"Уверенность: {confidence_label}\n\n"
-        f"⚠️ _Автоопределение приблизительно. "
+        f"Уверенность: {confidence_label}\n"
+        f"_{method_note}_\n\n"
+        f"⚠️ _Автоопределение — экспериментальная функция. "
         f"Точный тип голоса определит вокальный педагог._\n\n"
         f"Если неточно — выбери вручную: /settings\n\n"
         f"Теперь ты можешь:\n"

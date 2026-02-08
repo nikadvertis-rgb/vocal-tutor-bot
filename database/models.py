@@ -39,6 +39,17 @@ def set_voice_type(user_id: int, voice_type: str) -> None:
     conn.commit()
 
 
+def set_gender(user_id: int, gender: str) -> None:
+    """Устанавливает пол пользователя ('male' или 'female')."""
+    conn = get_connection()
+    conn.execute(
+        """UPDATE users SET gender = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = ?""",
+        (gender, user_id)
+    )
+    conn.commit()
+
+
 def get_user(user_id: int) -> dict | None:
     """Возвращает данные пользователя или None."""
     conn = get_connection()
