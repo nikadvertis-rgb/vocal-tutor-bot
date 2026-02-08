@@ -252,9 +252,9 @@ async def _determine_voice_from_test(update, context):
 async def _determine_voice_from_test_data(message, user, context, test_data):
     """Общая логика определения голоса по данным теста."""
     from analysis.pitch import get_pitch_range, get_pitch_median
-    from ai.coach import analyze_voice_type, get_voice_confidence, CONFIDENCE_TEXT
+    from ai.coach import analyze_voice_type_from_test, get_voice_confidence, CONFIDENCE_TEXT
 
-    # Объединяем все pitch data
+    # Объединяем все pitch data (для отчёта)
     all_pitch_data = []
     for step_data in test_data:
         all_pitch_data.extend(step_data["pitch_data"])
@@ -267,7 +267,8 @@ async def _determine_voice_from_test_data(message, user, context, test_data):
 
     pitch_range = get_pitch_range(all_pitch_data)
     median_freq = get_pitch_median(all_pitch_data)
-    detected_type = await analyze_voice_type(pitch_range, median_freq)
+    # Определяем тип по пошаговым данным (не по общей медиане!)
+    detected_type = analyze_voice_type_from_test(test_data)
     voice_name = VOICE_TYPES.get(detected_type, detected_type)
     confidence = get_voice_confidence(all_pitch_data, detected_type)
     confidence_label = CONFIDENCE_TEXT.get(confidence, "")

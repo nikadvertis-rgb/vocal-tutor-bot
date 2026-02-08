@@ -72,7 +72,7 @@ async def warmup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     query = update.callback_query
     await query.answer()
 
-    warmup_id = query.data.replace("warmup_", "")
+    warmup_id = query.data.replace("warmup_", "", 1)
 
     warmup = next((w for w in WARMUPS if w["id"] == warmup_id), None)
 

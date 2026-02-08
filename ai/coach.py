@@ -64,28 +64,11 @@ async def get_ai_feedback(session_data: dict) -> str:
 
 async def analyze_voice_type(pitch_range: tuple, median_freq: float = 0.0) -> str:
     """
-    Определяет тип голоса по диапазону и медиане (тесситуре).
-
-    Медиана — основной критерий: приближение к тесситуре (зоне комфорта).
-    Диапазон (перцентили 5/95) — дополнительный сигнал.
-
-    Типичные диапазоны (по данным вокальной педагогики):
-      Бас:        E2–E4  (82–330 Hz),  медиана ~110–150
-      Баритон:    A2–A4  (110–440 Hz), медиана ~130–185
-      Тенор:      C3–C5  (131–523 Hz), медиана ~160–260
-      Меццо:      A3–A5  (220–880 Hz), медиана ~220–340
-      Сопрано:    C4–C6  (262–1047 Hz),медиана ~300–520
-
-    Args:
-        pitch_range: Tuple (min_freq, max_freq) в Hz (перцентили 5/95)
-        median_freq: Медианная частота в Hz
-
-    Returns:
-        Рекомендуемый тип голоса
+    Определяет тип голоса по диапазону и медиане.
+    Используется как фолбэк при обычной записи (не пошаговый тест).
     """
     min_freq, max_freq = pitch_range
 
-    # Если есть медиана — используем её как основной критерий
     if median_freq > 0:
         if median_freq >= 350:
             return "soprano"
@@ -95,12 +78,7 @@ async def analyze_voice_type(pitch_range: tuple, median_freq: float = 0.0) -> st
             else:
                 return "tenor"
         elif median_freq >= 185:
-            if max_freq > 500:
-                return "tenor"
-            elif max_freq > 400:
-                return "tenor"
-            else:
-                return "baritone"
+            return "tenor"
         elif median_freq >= 140:
             if max_freq > 400:
                 return "tenor"
@@ -112,7 +90,6 @@ async def analyze_voice_type(pitch_range: tuple, median_freq: float = 0.0) -> st
             else:
                 return "bass"
 
-    # Фолбэк: только по диапазону (менее точно)
     if max_freq > 1000:
         return "soprano"
     elif max_freq > 700:
@@ -123,6 +100,79 @@ async def analyze_voice_type(pitch_range: tuple, median_freq: float = 0.0) -> st
         return "baritone"
     else:
         return "bass"
+
+
+def analyze_voice_type_from_test(test_data: list) -> str:
+    """
+    Определяет тип голоса по данным пошагового теста с гаммами.
+
+    Принцип: НИЖНИЙ конец диапазона (первая гамма) определяет тип голоса.
+    Количество пройденных шагов показывает ширину диапазона, но НЕ тип.
+    Мужчина с широким диапазоном — это тенор, а не сопрано.
+
+    Гаммы теста:
+      Шаг 0: C3-C4 (130-262 Hz) — средний мужской диапазон
+      Шаг 1: C4-C5 (262-523 Hz) — октавой выше
+      Шаг 2: C5-C6 (523-1047 Hz) — ещё октавой выше
+
+    Args:
+        test_data: Список словарей с ключами step, scale, pitch_data
+                   (pitch_data = список {frequency, time, confidence})
+
+    Returns:
+        Тип голоса: bass, baritone, tenor, mezzo, soprano
+    """
+    import numpy as np
+
+    if not test_data:
+        return "baritone"
+
+    steps_completed = len(test_data)
+
+    # Анализируем первую (самую низкую) гамму — она определяет "дно" голоса
+    first_step_data = test_data[0]["pitch_data"]
+    if not first_step_data:
+        return "baritone"
+
+    first_freqs = [p["frequency"] for p in first_step_data]
+    low_end = float(np.percentile(first_freqs, 5))      # нижняя граница
+    first_median = float(np.median(first_freqs))          # медиана первой гаммы
+
+    # Если нижний конец < 200 Hz — мужской голос (бас/баритон/тенор)
+    # Первая гамма C3-C4, значит если человек поёт её с частотами 130-260,
+    # он точно мужской голос.
+    if low_end < 200:
+        if steps_completed == 1:
+            # Только C3-C4 (нажал "слишком высоко" для C4-C5)
+            if first_median < 155:
+                return "bass"
+            else:
+                return "baritone"
+        elif steps_completed == 2:
+            # C3-C4 + C4-C5 (нажал "слишком высоко" для C5-C6)
+            if first_median < 155:
+                return "baritone"
+            else:
+                return "tenor"
+        else:
+            # Прошёл все 3 гаммы — широкий диапазон, но нижний конец мужской
+            return "tenor"
+
+    # Нижний конец 200-280 Hz — высокий мужской или низкий женский
+    elif low_end < 280:
+        if steps_completed >= 3:
+            return "mezzo"
+        elif steps_completed == 2:
+            return "mezzo"
+        else:
+            return "tenor"
+
+    # Нижний конец > 280 Hz — женский голос
+    else:
+        if steps_completed >= 2:
+            return "soprano"
+        else:
+            return "mezzo"
 
 
 def get_voice_confidence(pitch_data: list, detected_type: str) -> str:
