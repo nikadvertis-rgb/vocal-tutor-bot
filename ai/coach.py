@@ -1,16 +1,61 @@
 """
 AI-коуч через Z.AI GLM-4.7 API (OpenAI-совместимый).
-Генерирует персональные рекомендации на основе анализа.
+Фолбэк на OpenRouter (бесплатные модели) если Z.AI недоступен.
 """
 
 import logging
 from openai import AsyncOpenAI, APIError
-from config import ZAI_API_KEY, ZAI_BASE_URL, ZAI_MODEL
+from config import (
+    ZAI_API_KEY, ZAI_BASE_URL, ZAI_MODEL,
+    OPENROUTER_API_KEY, OPENROUTER_BASE_URL, OPENROUTER_MODELS,
+)
 
 logger = logging.getLogger(__name__)
 
 # Клиент Z.AI (OpenAI-совместимый)
 _client = AsyncOpenAI(api_key=ZAI_API_KEY, base_url=ZAI_BASE_URL)
+
+# Клиент OpenRouter (фолбэк)
+_openrouter_client = (
+    AsyncOpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
+    if OPENROUTER_API_KEY else None
+)
+
+
+async def _ai_request(prompt: str, max_tokens: int = 300) -> str | None:
+    """
+    Отправляет запрос к AI с цепочкой фолбэков:
+    Z.AI → OpenRouter (несколько моделей) → None.
+
+    Returns:
+        Текст ответа или None если все провайдеры недоступны.
+    """
+    # 1. Пробуем Z.AI
+    try:
+        response = await _client.chat.completions.create(
+            model=ZAI_MODEL,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        logger.warning(f"Z.AI недоступен: {type(e).__name__}: {e}")
+
+    # 2. Пробуем OpenRouter модели по очереди
+    if _openrouter_client:
+        for model in OPENROUTER_MODELS:
+            try:
+                response = await _openrouter_client.chat.completions.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                logger.info(f"OpenRouter OK: {model}")
+                return response.choices[0].message.content
+            except Exception as e:
+                logger.warning(f"OpenRouter {model}: {type(e).__name__}: {e}")
+
+    return None
 
 
 async def get_ai_feedback(session_data: dict) -> str:
@@ -46,20 +91,10 @@ async def get_ai_feedback(session_data: dict) -> str:
 
 Стиль: тёплый, на «ты». Эмодзи: 1-2 штуки максимум."""
 
-    try:
-        response = await _client.chat.completions.create(
-            model=ZAI_MODEL,
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message.content
-
-    except APIError as e:
-        logger.error(f"Z.AI API error: {e}")
-        return "(AI временно недоступен)"
-    except Exception as e:
-        logger.error(f"AI feedback error: {e}")
-        return "(Не удалось получить совет от AI)"
+    result = await _ai_request(prompt, max_tokens=300)
+    if result:
+        return result
+    return "(AI временно недоступен)"
 
 
 async def analyze_voice_type(pitch_range: tuple, median_freq: float = 0.0) -> str:
@@ -238,11 +273,11 @@ CONFIDENCE_TEXT = {
 
 async def analyze_voice_type_ai(test_data: list, gender: str) -> str | None:
     """
-    Определяет тип голоса через Z.AI нейронку.
+    Определяет тип голоса через AI (Z.AI → OpenRouter фолбэк).
     Дополнительный метод — подтверждает/корректирует алгоритмический результат.
 
     Returns:
-        Тип голоса или None если API недоступен.
+        Тип голоса или None если все провайдеры недоступны.
     """
     import numpy as np
 
@@ -286,23 +321,17 @@ async def analyze_voice_type_ai(test_data: list, gender: str) -> str | None:
         f"Ответь ОДНИМ словом из списка: {', '.join(allowed)}"
     )
 
-    try:
-        response = await _client.chat.completions.create(
-            model=ZAI_MODEL,
-            max_tokens=10,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        result = response.choices[0].message.content.strip().lower()
-        # Проверяем что ответ — валидный тип
-        if result in allowed:
-            return result
-        # Пытаемся найти валидный тип в ответе
-        for t in allowed:
-            if t in result:
-                return t
-        logger.warning(f"AI вернул невалидный тип: {result}")
+    result = await _ai_request(prompt, max_tokens=10)
+    if not result:
         return None
 
-    except Exception as e:
-        logger.warning(f"AI voice type error: {e}")
-        return None
+    result = result.strip().lower()
+    # Проверяем что ответ — валидный тип
+    if result in allowed:
+        return result
+    # Пытаемся найти валидный тип в ответе
+    for t in allowed:
+        if t in result:
+            return t
+    logger.warning(f"AI вернул невалидный тип: {result}")
+    return None

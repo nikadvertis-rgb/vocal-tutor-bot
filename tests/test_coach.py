@@ -34,7 +34,8 @@ class TestGetAiFeedback:
         """При ошибке API — запасное сообщение."""
         from openai import APIError
 
-        with patch("ai.coach._client") as mock_client:
+        with patch("ai.coach._client") as mock_client, \
+             patch("ai.coach._openrouter_client", None):
             mock_client.chat.completions.create = AsyncMock(
                 side_effect=APIError(
                     message="test error",
@@ -52,8 +53,9 @@ class TestGetAiFeedback:
 
     @pytest.mark.asyncio
     async def test_generic_error_fallback(self):
-        """При общей ошибке — запасное сообщение."""
-        with patch("ai.coach._client") as mock_client:
+        """При общей ошибке (все провайдеры) — запасное сообщение."""
+        with patch("ai.coach._client") as mock_client, \
+             patch("ai.coach._openrouter_client", None):
             mock_client.chat.completions.create = AsyncMock(
                 side_effect=RuntimeError("connection failed")
             )
@@ -63,7 +65,7 @@ class TestGetAiFeedback:
                 "problem_notes": "Нет",
                 "good_notes": "Нет",
             })
-        assert "Не удалось" in result
+        assert "недоступен" in result
 
 
 class TestAnalyzeVoiceType:

@@ -21,6 +21,15 @@ if not ZAI_API_KEY:
 ZAI_BASE_URL = os.getenv("ZAI_BASE_URL", "https://api.z.ai/api/paas/v4/")
 ZAI_MODEL = os.getenv("ZAI_MODEL", "glm-4.7")
 
+# OpenRouter (фолбэк для AI)
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/"
+OPENROUTER_MODELS = [
+    "google/gemma-3-12b-it:free",
+    "arcee-ai/trinity-large-preview:free",
+    "google/gemma-3-4b-it:free",
+]
+
 # SQLite
 DB_PATH = os.getenv("DB_PATH", "data/vocal_tutor.db")
 
