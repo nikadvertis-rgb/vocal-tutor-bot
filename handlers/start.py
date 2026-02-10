@@ -5,6 +5,7 @@
 """
 
 import logging
+import traceback
 from pathlib import Path
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -305,57 +306,76 @@ async def _determine_voice_from_test_data(message, user, context, test_data):
         )
         return
 
-    gender = context.user_data.get("gender")
-    gender_label = GENDER_LABELS.get(gender, "не указан")
+    try:
+        gender = context.user_data.get("gender")
+        gender_label = GENDER_LABELS.get(gender, "не указан")
 
-    pitch_range = get_pitch_range(all_pitch_data)
-    median_freq = get_pitch_median(all_pitch_data)
+        pitch_range = get_pitch_range(all_pitch_data)
+        median_freq = get_pitch_median(all_pitch_data)
 
-    # Гибрид: алгоритм + AI
-    algo_type = analyze_voice_type_from_test(test_data, gender=gender)
-    ai_type = await analyze_voice_type_ai(test_data, gender=gender)
+        # Гибрид: алгоритм + AI
+        algo_type = analyze_voice_type_from_test(test_data, gender=gender)
+        ai_type = await analyze_voice_type_ai(test_data, gender=gender)
 
-    # Итоговый результат: AI подтверждает или алгоритм как основа
-    if ai_type and ai_type != algo_type:
-        detected_type = ai_type  # AI корректирует
-        method_note = f"Алгоритм: {VOICE_TYPES.get(algo_type, algo_type)} | AI: {VOICE_TYPES.get(ai_type, ai_type)}"
-    elif ai_type:
-        detected_type = algo_type  # Совпали
-        method_note = f"Алгоритм и AI совпали"
-    else:
-        detected_type = algo_type  # AI недоступен
-        method_note = f"Определено алгоритмом (AI недоступен)"
+        # Итоговый результат: AI подтверждает или алгоритм как основа
+        if ai_type and ai_type != algo_type:
+            detected_type = ai_type  # AI корректирует
+            method_note = f"Алгоритм: {VOICE_TYPES.get(algo_type, algo_type)} | AI: {VOICE_TYPES.get(ai_type, ai_type)}"
+        elif ai_type:
+            detected_type = algo_type  # Совпали
+            method_note = f"Алгоритм и AI совпали"
+        else:
+            detected_type = algo_type  # AI недоступен
+            method_note = f"Определено алгоритмом (AI недоступен)"
 
-    voice_name = VOICE_TYPES.get(detected_type, detected_type)
-    confidence = get_voice_confidence(all_pitch_data, detected_type)
-    confidence_label = CONFIDENCE_TEXT.get(confidence, "")
+        voice_name = VOICE_TYPES.get(detected_type, detected_type)
+        confidence = get_voice_confidence(all_pitch_data, detected_type)
+        confidence_label = CONFIDENCE_TEXT.get(confidence, "")
 
-    # Информация о пройденных шагах
-    steps_done = len(test_data)
-    last_scale = VOICE_TEST_STEPS[min(steps_done - 1, len(VOICE_TEST_STEPS) - 1)]["name"]
+        # Информация о пройденных шагах
+        steps_done = len(test_data)
+        last_scale = VOICE_TEST_STEPS[min(steps_done - 1, len(VOICE_TEST_STEPS) - 1)]["name"]
 
-    # Сохраняем
-    set_voice_type(user.id, detected_type)
-    context.user_data["voice_type"] = detected_type
-    context.user_data.pop("voice_test_step", None)
-    context.user_data.pop("voice_test_data", None)
+        # Сохраняем
+        set_voice_type(user.id, detected_type)
+        context.user_data["voice_type"] = detected_type
+        context.user_data.pop("voice_test_step", None)
+        context.user_data.pop("voice_test_data", None)
 
-    await message.reply_text(
-        f"🎙 *Результат анализа голоса (эксперим.)*\n\n"
-        f"Пол: {gender_label}\n"
-        f"Пройдено шагов: {steps_done}\n"
-        f"Максимальная гамма: {last_scale}\n"
-        f"Диапазон: {pitch_range[0]:.0f} — {pitch_range[1]:.0f} Hz\n"
-        f"Тесситура (медиана): {median_freq:.0f} Hz\n"
-        f"Определён тип: *{voice_name}*\n"
-        f"Уверенность: {confidence_label}\n"
-        f"_{method_note}_\n\n"
-        f"⚠️ _Автоопределение — экспериментальная функция. "
-        f"Точный тип голоса определит вокальный педагог._\n\n"
-        f"Если неточно — выбери вручную: /settings\n\n"
-        f"Теперь ты можешь:\n"
-        f"• /exercise — упражнения с аудиопримерами\n"
-        f"• /warmups — готовые распевки\n"
-        f"• /progress — твой прогресс",
-        parse_mode="Markdown"
-    )
+        result_text = (
+            f"🎙 *Результат анализа голоса (эксперим.)*\n\n"
+            f"Пол: {gender_label}\n"
+            f"Пройдено шагов: {steps_done}\n"
+            f"Максимальная гамма: {last_scale}\n"
+            f"Диапазон: {pitch_range[0]:.0f} — {pitch_range[1]:.0f} Hz\n"
+            f"Тесситура (медиана): {median_freq:.0f} Hz\n"
+            f"Определён тип: *{voice_name}*\n"
+            f"Уверенность: {confidence_label}\n"
+            f"_{method_note}_\n\n"
+            f"⚠️ _Автоопределение — экспериментальная функция. "
+            f"Точный тип голоса определит вокальный педагог._\n\n"
+            f"Если неточно — выбери вручную: /settings\n\n"
+            f"Теперь ты можешь:\n"
+            f"• /exercise — упражнения с аудиопримерами\n"
+            f"• /warmups — готовые распевки\n"
+            f"• /progress — твой прогресс"
+        )
+
+        try:
+            await message.reply_text(result_text, parse_mode="Markdown")
+        except Exception:
+            # Markdown ошибка — отправляем без форматирования
+            plain = result_text.replace("*", "").replace("_", "")
+            await message.reply_text(plain)
+
+    except Exception as e:
+        logger.error(f"Ошибка определения типа голоса: {traceback.format_exc()}")
+        # Сбрасываем состояние теста
+        context.user_data.pop("detecting_voice_type", None)
+        context.user_data.pop("voice_test_step", None)
+        context.user_data.pop("voice_test_data", None)
+        await message.reply_text(
+            f"❌ Ошибка определения типа голоса.\n"
+            f"Детали: {type(e).__name__}: {e}\n\n"
+            f"Выбери тип вручную: /settings"
+        )

@@ -6,6 +6,7 @@
 import os
 import asyncio
 import logging
+import traceback
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -21,6 +22,19 @@ from database.models import save_session, upsert_user, set_voice_type
 from utils.rate_limit import check_rate_limit, get_remaining_requests
 
 logger = logging.getLogger(__name__)
+
+
+async def _safe_edit_text(message, text: str, parse_mode: str = None) -> None:
+    """Отправляет сообщение, при ошибке Markdown — повторяет без форматирования."""
+    if parse_mode:
+        try:
+            await message.edit_text(text, parse_mode=parse_mode)
+            return
+        except Exception:
+            logger.warning("Markdown ошибка, отправляю без форматирования")
+    # Убираем Markdown-символы для plain text
+    plain = text.replace("*", "").replace("_", "")
+    await message.edit_text(plain)
 
 
 async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -72,11 +86,27 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     wav_path = None
     try:
-        # Скачиваем и конвертируем
-        wav_path = await download_and_convert_voice(voice, context)
+        # Шаг 1: Скачиваем и конвертируем
+        try:
+            wav_path = await download_and_convert_voice(voice, context)
+        except Exception as e:
+            logger.error(f"Ошибка конвертации аудио от {user.id}: {traceback.format_exc()}")
+            await status_message.edit_text(
+                "❌ Ошибка конвертации аудио.\n"
+                "Возможно, проблема с FFmpeg на сервере."
+            )
+            return
 
-        # Анализируем pitch (в отдельном потоке, чтобы не блокировать event loop)
-        pitch_data = await asyncio.to_thread(analyze_pitch, wav_path)
+        # Шаг 2: Анализируем pitch
+        try:
+            pitch_data = await asyncio.to_thread(analyze_pitch, wav_path)
+        except Exception as e:
+            logger.error(f"Ошибка pitch-анализа от {user.id}: {traceback.format_exc()}")
+            await status_message.edit_text(
+                "❌ Ошибка анализа высоты звука.\n"
+                "Попробуй записать ещё раз."
+            )
+            return
 
         if not pitch_data["pitch_data"]:
             await status_message.edit_text(
@@ -99,10 +129,8 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
         # Формируем отчёт
         if current_exercise:
-            # Сравниваем с целевыми нотами упражнения
             report = compare_with_exercise(pitch_data, current_exercise)
         else:
-            # Просто показываем распознанные ноты
             report = format_pitch_report(pitch_data)
 
         # Получаем AI-feedback (если есть анализ)
@@ -119,9 +147,11 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         # Формируем финальный ответ
         response = report["text"]
         if ai_feedback:
-            response += f"\n\n💬 *Совет от AI:*\n{ai_feedback}"
+            # Убираем Markdown из AI-ответа чтобы не сломать форматирование
+            safe_feedback = ai_feedback.replace("*", "").replace("_", "").replace("`", "")
+            response += f"\n\n💬 *Совет от AI:*\n{safe_feedback}"
 
-        await status_message.edit_text(response, parse_mode="Markdown")
+        await _safe_edit_text(status_message, response, parse_mode="Markdown")
 
         # Сохраняем сессию в БД
         save_session(
@@ -135,11 +165,15 @@ async def voice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
 
     except Exception as e:
-        logger.error(f"Ошибка обработки голосового от {user.id}: {e}")
-        await status_message.edit_text(
-            "❌ Произошла ошибка при анализе.\n"
-            "Попробуй записать ещё раз."
-        )
+        logger.error(f"Ошибка обработки голосового от {user.id}: {traceback.format_exc()}")
+        try:
+            await status_message.edit_text(
+                "❌ Произошла ошибка при анализе.\n"
+                "Попробуй записать ещё раз.\n\n"
+                f"Детали: {type(e).__name__}: {e}"
+            )
+        except Exception:
+            pass
 
     finally:
         # Удаляем временные файлы
