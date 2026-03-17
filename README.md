@@ -152,6 +152,10 @@ vocal-tutor-bot/
 - **openai** — клиент для любого OpenAI-совместимого API
 - **SQLite** (WAL mode) — хранилище данных
 
+## Автор
+
+Мельников Никита Сергеевич — [GitHub](https://github.com/nikadvertis-rgb) · [LinkedIn](https://www.linkedin.com/in/nikita-melnikoff)
+
 ## Лицензия
 
 MIT
