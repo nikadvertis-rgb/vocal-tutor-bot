@@ -156,6 +156,8 @@ vocal-tutor-bot/
 
 Мельников Никита Сергеевич — [GitHub](https://github.com/nikadvertis-rgb) · [LinkedIn](https://www.linkedin.com/in/nikita-melnikoff)
 
-## Лицензия
+## Лицензия и дисклеймер
 
 MIT
+
+This project is a **non-commercial educational prototype**. Vocal exercises and warmup audio materials inspired by Seth Riggs' "Speech Level Singing" methodology are included solely for testing and personal learning purposes. All rights to the original materials belong to their respective owners. This project is not affiliated with or endorsed by Seth Riggs or SLS International.
