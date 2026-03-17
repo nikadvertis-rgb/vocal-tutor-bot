@@ -33,7 +33,7 @@ jobs:
       - name: Run tests
         env:
           TELEGRAM_TOKEN: test-token
-          ZAI_API_KEY: test-key
+          AI_API_KEY: test-key
           DB_PATH: ":memory:"
         run: pytest tests/ -v
 

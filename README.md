@@ -1,69 +1,70 @@
 # Vocal Tutor Bot
 
-🎤 Telegram-бот для тренировки вокала с AI-анализом.
+Telegram-бот для тренировки вокала с AI-анализом голоса.
 
 ## Возможности
 
-- 🎵 Анализ высоты голоса (pitch detection)
-- 📊 Сравнение с целевыми нотами
-- 🤖 Персональные советы от AI (Claude)
-- 📈 Отслеживание прогресса
+- **Pitch detection** — анализ высоты голоса через librosa (PYIN алгоритм)
+- **Сравнение с целевыми нотами** — точность попадания в центах
+- **AI-коучинг** — персональные советы от LLM (любой OpenAI-совместимый API)
+- **Автоопределение типа голоса** — пошаговый тест гаммами + AI-подтверждение
+- **Готовые упражнения** — гаммы, интервалы, арпеджио с аудиопримерами
+- **Распевки** — 3 готовых аудио (7/10/20 мин)
+- **Прогресс** — SQLite-хранилище тренировок, статистика
 
 ## Быстрый старт
 
-### 1. Установка зависимостей
+### 1. Клонируйте и установите зависимости
 
 ```bash
-# Клонируй репозиторий
+git clone https://github.com/nikadvertis-rgb/vocal-tutor-bot.git
 cd vocal-tutor-bot
 
-# Создай виртуальное окружение
 python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
 
-# Активируй (Windows)
-venv\Scripts\activate
-
-# Активируй (Linux/Mac)
-source venv/bin/activate
-
-# Установи зависимости
 pip install -r requirements.txt
 ```
 
-### 2. FFmpeg (обязательно!)
+### 2. FFmpeg (обязательно)
 
-FFmpeg нужен для конвертации аудио.
-
-**Windows:**
 ```bash
-# Через winget
-winget install FFmpeg
-
-# Или скачай с https://ffmpeg.org/download.html
-```
-
-**Linux:**
-```bash
+# Linux
 sudo apt install ffmpeg
-```
 
-**macOS:**
-```bash
+# macOS
 brew install ffmpeg
+
+# Windows
+winget install FFmpeg
 ```
 
-### 3. Настройка токенов
+### 3. Настройка
 
 ```bash
-# Скопируй шаблон
 cp .env.example .env
-
-# Отредактируй .env и вставь свои токены
 ```
 
-Нужно получить:
-- `TELEGRAM_TOKEN` — от [@BotFather](https://t.me/BotFather)
-- `ANTHROPIC_API_KEY` — от [console.anthropic.com](https://console.anthropic.com)
+Отредактируйте `.env`:
+
+| Переменная | Описание | Где получить |
+|---|---|---|
+| `TELEGRAM_TOKEN` | Токен Telegram-бота | [@BotFather](https://t.me/BotFather) |
+| `AI_API_KEY` | Ключ OpenAI-совместимого API | См. ниже |
+| `AI_BASE_URL` | Base URL провайдера | См. ниже |
+| `AI_MODEL` | Название модели | См. ниже |
+
+#### Поддерживаемые AI-провайдеры
+
+Бот работает с любым OpenAI-совместимым API:
+
+| Провайдер | `AI_BASE_URL` | `AI_MODEL` (пример) |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `google/gemini-2.5-flash` |
+| Z.AI (GLM) | `https://open.bigmodel.cn/api/paas/v4` | `glm-4.7` |
+| Ollama (локально) | `http://localhost:11434/v1` | `llama3.2` |
 
 ### 4. Запуск
 
@@ -71,53 +72,85 @@ cp .env.example .env
 python bot.py
 ```
 
+### Docker
+
+```bash
+cp .env.example .env
+# отредактируйте .env
+docker compose up -d
+```
+
 ## Структура проекта
 
 ```
 vocal-tutor-bot/
 ├── bot.py              # Точка входа
-├── config.py           # Конфигурация
+├── config.py           # Конфигурация (env vars)
 ├── requirements.txt    # Зависимости
-├── .env.example        # Шаблон переменных
+├── Dockerfile
+├── docker-compose.yml
 │
-├── handlers/           # Обработчики команд
-│   ├── start.py        # /start
-│   ├── help.py         # /help
-│   ├── voice.py        # Голосовые сообщения
-│   ├── exercise.py     # /exercise
-│   └── progress.py     # /progress
+├── handlers/           # Обработчики Telegram-команд
+│   ├── start.py        # /start — онбординг, выбор голоса
+│   ├── voice.py        # Голосовые сообщения — анализ pitch
+│   ├── exercise.py     # /exercise — упражнения
+│   ├── warmups.py      # /warmups — готовые распевки
+│   ├── progress.py     # /progress — статистика
+│   ├── settings.py     # /settings — тип голоса, пол
+│   └── help.py         # /help
 │
 ├── analysis/           # Анализ аудио
-│   ├── pitch.py        # Pitch detection (librosa)
-│   ├── notes.py        # Конвертация частот → ноты
-│   └── report.py       # Формирование отчёта
+│   ├── pitch.py        # Pitch detection (librosa PYIN)
+│   ├── notes.py        # Частоты → ноты (A4=440Hz)
+│   └── report.py       # Сравнение с упражнением
 │
 ├── ai/                 # AI-коучинг
-│   └── coach.py        # Claude API
+│   └── coach.py        # OpenAI-compatible client
+│
+├── database/           # Хранилище
+│   ├── db.py           # SQLite (WAL mode)
+│   └── models.py       # CRUD операции
 │
 ├── utils/              # Утилиты
-│   └── audio.py        # Конвертация аудио
+│   ├── audio.py        # Конвертация OGG→WAV
+│   └── rate_limit.py   # Rate limiter (10 req/hour)
 │
-└── exercises/          # Упражнения
-    └── exercises.json  # 10 базовых упражнений
+├── exercises/          # Упражнения + аудио
+│   ├── exercises.json  # Описания упражнений
+│   └── audio/          # OGG/MP3 файлы
+│
+└── tests/              # Тесты (pytest)
 ```
 
 ## Команды бота
 
 | Команда | Описание |
 |---------|----------|
-| `/start` | Начать, выбрать тип голоса |
-| `/exercise` | Выбрать упражнение |
-| `/progress` | Посмотреть статистику |
+| `/start` | Начать — выбор пола и типа голоса |
+| `/exercise` | Выбрать упражнение с аудиопримером |
+| `/warmups` | Готовые распевки (7/10/20 мин) |
+| `/progress` | Статистика тренировок |
+| `/settings` | Изменить тип голоса |
 | `/help` | Справка |
+
+## Как работает анализ
+
+1. Пользователь отправляет голосовое сообщение
+2. OGG → WAV конвертация (pydub + FFmpeg)
+3. Pitch detection — librosa PYIN (65–1047 Hz)
+4. Частоты → ноты (12-TET, A4=440Hz) с отклонением в центах
+5. Сравнение с целевыми нотами упражнения
+6. AI генерирует персональный совет
+7. Результат сохраняется в SQLite
 
 ## Технологии
 
 - **Python 3.11+**
-- **python-telegram-bot** — Telegram Bot API
-- **librosa** — Pitch detection (PYIN алгоритм)
-- **pydub** — Конвертация аудио
-- **anthropic** — Claude API для AI-советов
+- **python-telegram-bot 20.x** — Telegram Bot API
+- **librosa** — Pitch detection (PYIN)
+- **pydub** + FFmpeg — аудио конвертация
+- **openai** — клиент для любого OpenAI-совместимого API
+- **SQLite** (WAL mode) — хранилище данных
 
 ## Лицензия
 

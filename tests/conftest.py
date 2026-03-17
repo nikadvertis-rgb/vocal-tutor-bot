@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # Устанавливаем переменные окружения ДО импорта config
 os.environ.setdefault("TELEGRAM_TOKEN", "test-token-123")
-os.environ.setdefault("ZAI_API_KEY", "test-key-123")
+os.environ.setdefault("AI_API_KEY", "test-key-123")
 os.environ.setdefault("DB_PATH", ":memory:")
 
 
